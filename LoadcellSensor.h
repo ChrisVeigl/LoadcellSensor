@@ -22,12 +22,13 @@
 /**************************************************************************/
 
 #define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement
-#define COMPENSATION_DECAY           0.9   // overshoot compensation time (close to 1 -> slower decay)
+#define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
 #define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
 
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 
+#define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
 
 /**************************************************************************/
 /*!
@@ -59,15 +60,15 @@ private:
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
   double   compensationDecay,compensationFactor;
   
-  int32_t  raw,filtered,baseline,offset;
+  int32_t  raw,filtered,baseline,offset,bypassBaseline;
   int32_t  activity,lastFilteredValue,maxForce,compensationValue;
   bool     moving,overshootCompensationEnabled,autoCalibrationEnabled;
   double   accu,afBuf[2],nfBuf[2],blBuf[2];
   uint32_t activityTimestamp=0;
 
   int      sgn(int x);
-  double   baselineFilter(register double val, double * buf);
-  double   noiseFilter(register double val, double * buf);
-  double   activityFilter(register double val, double * buf);
+  double   baselineFilter(double val, double * buf);
+  double   noiseFilter(double val, double * buf);
+  double   activityFilter(double val, double * buf);
   
 };

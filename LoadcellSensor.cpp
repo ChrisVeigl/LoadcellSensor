@@ -37,6 +37,7 @@ LoadcellSensor::LoadcellSensor () {
   offset=activity=lastFilteredValue=maxForce=compensationValue=0;
   overshootCompensationEnabled=autoCalibrationEnabled=true;
   activityTimestamp=0;
+  bypassBaseline=0;
   moving=false;
   movementThreshold=MOVEMENT_THRESHOLD;
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
@@ -73,26 +74,6 @@ int32_t LoadcellSensor::process (int32_t value) {
   // calculate filtered channel value
   filtered= noiseFilter(raw,nfBuf);
 
-  // handle baseline and movement
-  if ((abs(filtered-baseline) <= movementThreshold + abs(compensationValue)) ||
-     ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
-    moving=false; 
-    if (maxForce!=0) {
-      compensationValue=maxForce*compensationFactor;
-      maxForce=0;
-    }
-    baseline=baselineFilter(raw,blBuf);  // feed new values for baseline
-  }  
-
-  if (abs(filtered-baseline) > movementThreshold + abs(compensationValue) ) {  // moving! hlastFilteredValue baselineX as it is!
-     if (!moving) activity+=idleDetectionThreshold;
-     moving=true; 
-     result=filtered-baseline; 
-     if (abs(result) > abs(maxForce)) {
-      maxForce=result;
-     }
-  }
-
   // autocalibration / idle detection
   if (autoCalibrationEnabled) {
     if (millis()-activityTimestamp > idleDetectionPeriod) { 
@@ -103,6 +84,30 @@ int32_t LoadcellSensor::process (int32_t value) {
       activityTimestamp=millis();
     }
   }
+
+  // handle baseline and movement
+  if ((abs(filtered-baseline) <= movementThreshold + abs(compensationValue)) ||
+     ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
+    moving=false; 
+    if (maxForce!=0) {
+      compensationValue+=maxForce*compensationFactor;
+      maxForce=0;
+    }
+	if (!bypassBaseline)
+      baseline=baselineFilter(raw,blBuf);  // feed new values for baseline
+    else bypassBaseline--;
+  }  
+
+  if (abs(filtered-baseline) > movementThreshold + abs(compensationValue) ) {  // moving! hlastFilteredValue baselineX as it is!
+    if (!moving) activity+=idleDetectionThreshold;
+    moving=true;
+	bypassBaseline=BYPASS_BASELINE;
+    result=filtered-baseline; 
+    if (abs(result) > abs(maxForce)) {
+      maxForce=result;
+    }
+  }
+
   return(result);
 }
 
@@ -123,9 +128,10 @@ int LoadcellSensor::sgn(int x) {
 */
 /**************************************************************************/
 void LoadcellSensor::calib(void) {  // perform offset calibration
-  memset(afBuf,0,sizeof(blBuf));
+  memset(afBuf,0,sizeof(afBuf));
   memset(nfBuf,0,sizeof(nfBuf));
   memset(blBuf,0,sizeof(blBuf));
+  baseline=baselineFilter(0,blBuf);
   offset+=filtered;
 }
 
@@ -256,8 +262,8 @@ void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
     @return  the filtered signal
 */
 /**************************************************************************/
-double LoadcellSensor::noiseFilter(register double val, double * buf) {
-   register double tmp, fir, iir;
+double LoadcellSensor::noiseFilter(double val, double * buf) {
+   double tmp, fir, iir;
    tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
    val *= 0.1193072508536958;
    iir= val+0.7021409471770795*buf[0]-0.1793699505918626*tmp;
@@ -275,8 +281,8 @@ double LoadcellSensor::noiseFilter(register double val, double * buf) {
     @return  the filtered signal
 */
 /**************************************************************************/
-double LoadcellSensor::baselineFilter(register double val, double * buf) {
-   register double tmp, fir, iir;
+double LoadcellSensor::baselineFilter(double val, double * buf) {
+   double tmp, fir, iir;
    tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
    val *= 0.0002485901688812353;
    iir= val+1.945135508892326*buf[0]-0.9461298695678511*tmp;
@@ -294,8 +300,8 @@ double LoadcellSensor::baselineFilter(register double val, double * buf) {
     @return  the filtered signal
 */
 /**************************************************************************/
-double LoadcellSensor::activityFilter(register double val, double * buf) {
-   register double tmp, fir, iir;
+double LoadcellSensor::activityFilter(double val, double * buf) {
+   double tmp, fir, iir;
    tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
    val *= 0.06378257264840968;
    iir= val+1.068354407019735*buf[0]-0.3234846976133736*tmp;
