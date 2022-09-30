@@ -20,6 +20,10 @@
 #include <Mouse.h>
 #include "LoadcellSensor.h"
 
+// uncomment Wire or Wire1 as needed:
+// #define myWire Wire
+#define myWire Wire1   
+
 #define FLUSH_ADC_VALUES 0          // fortunately even the first value after a channel change is valid!
 #define BUTTON_PIN      17
 #define LED_PIN         LED_BUILTIN
@@ -41,7 +45,7 @@ void setup() {
   pinMode (BUTTON_PIN, INPUT_PULLUP);
   pinMode (LED_PIN, OUTPUT);
   Serial.begin(115200);
-  while (! nau.begin()) {
+  while (! nau.begin(&myWire)) {
     Serial.println("Failed to find NAU7802");
     delay(1000);
   }
@@ -149,6 +153,8 @@ void configureNAU() {
     case NAU7802_RATE_320SPS:  Serial.println("320 SPS"); break;
   }
   */
+
+  nau.setPGACap(NAU7802_CAP_OFF); //disable PGA capacitor on channel 2
   
   // Take 10 readings to flush out readings
   for (uint8_t i=0; i<40; i++) {
