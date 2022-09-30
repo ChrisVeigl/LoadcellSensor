@@ -1,6 +1,7 @@
 LoadcellSensor 
 ==============
 
+https://github.com/ChrisVeigl/LoadcellSensor
 
 This is a library for processing raw values from a load cell or similar sensor for application in HCI applications (e.g. for mouse cursor control).
 
