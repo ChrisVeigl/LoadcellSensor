@@ -24,22 +24,20 @@ extern "C" {
 #include "fidlib.h"
 }
 
+// default frequency settings
+#define SAMPLE_RATE 25       // sampling rate: 25Hz
+#define LP_BASELINE 0.1      // low pass cutoff frequency for baseline calculation (Hz)
+#define LP_NOISE    3        // low pass cutoff frequency for denoising the signal (Hz)
+#define LP_ACTIVITY 2        // low pass cutoff frequency for activity/idle detection (Hz)
+
+// default signal conditioning parameters
+#define GAIN                        1.00   // gain for incoming values
 #define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement
 #define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
 #define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
-
-#define GAIN                        1.00   // gain for incoming values
-
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
-
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
-
-#define SAMPLE_RATE 25
-#define LP_BASELINE 0.1
-#define LP_NOISE    3
-#define LP_ACTIVITY 2
-
 
 /**************************************************************************/
 /*!
