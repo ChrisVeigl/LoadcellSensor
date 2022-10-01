@@ -9,8 +9,7 @@
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
   Overshoot compensation and automatic calibration are supported.
-  Note: currently the values should be fed into the LoadcellSensor::process() method periodically (ca. 25Hz)
-  TBD: flexible update periods, flexible filter paramters
+  Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
   http://uazu.net/fiview/
@@ -20,6 +19,10 @@
   
 */
 /**************************************************************************/
+
+extern "C" {
+#include "fidlib.h"
+}
 
 #define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement
 #define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
@@ -32,6 +35,12 @@
 
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
 
+#define SAMPLE_RATE 25
+#define LP_BASELINE 0.1
+#define LP_NOISE    3
+#define LP_ACTIVITY 2
+
+
 /**************************************************************************/
 /*!
     @brief  LoadcellSensor class
@@ -41,6 +50,7 @@
 class LoadcellSensor {
 public:
   LoadcellSensor();
+  ~LoadcellSensor();
   void     calib(void);
   int32_t  process(int32_t value);
   void     clearActivity(void);
@@ -51,6 +61,10 @@ public:
   void     setCompensationFactor(double compensationFactor);
   void     setCompensationDecay(double compensationDecay);
   void     setGain(double gain);
+  void     setSampleRate(double sampleRate);
+  void     setBaselineLowpass(double lpBaseline);
+  void     setNoiseLowpass(double lpNoise);
+  void     setActivityLowpass(double lpActivity);
   void     enableOvershootCompensation(bool b);
   void     enableAutoCalibration(bool b);
   bool     isMoving(void);
@@ -63,16 +77,30 @@ private:
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
   double   compensationDecay,compensationFactor;
   double   gain;
+  double   sampleRate,lpBaseline,lpNoise,lpActivity;
   
   int32_t  raw,filtered,baseline,offset,bypassBaseline;
   int32_t  activity,lastFilteredValue,maxForce,compensationValue;
   bool     moving,overshootCompensationEnabled,autoCalibrationEnabled;
-  double   accu,afBuf[2],nfBuf[2],blBuf[2];
   uint32_t activityTimestamp=0;
 
+  FidFilter * filt_baseline;
+  FidRun *run_baseline;
+  FidFunc *func_baseline;
+  void *fbuf_baseline;  
+
+  FidFilter * filt_noise;
+  FidRun *run_noise;
+  FidFunc *func_noise;
+  void *fbuf_noise;  
+
+  FidFilter * filt_activity;
+  FidRun *run_activity;
+  FidFunc *func_activity;
+  void *fbuf_activity;  
+
   int      sgn(int x);
-  double   baselineFilter(double val, double * buf);
-  double   noiseFilter(double val, double * buf);
-  double   activityFilter(double val, double * buf);
+  void     initFilters();
+  void     freeFilters();
   
 };
