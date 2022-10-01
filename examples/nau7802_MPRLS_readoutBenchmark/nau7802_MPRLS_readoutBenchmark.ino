@@ -70,6 +70,8 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(DRDY_PIN), getValueISR, RISING);
 
+  P.setGain(0.1);  // adjust gain for pressure sensor
+
   // take initial timestamp
   ts=micros();
 
@@ -118,7 +120,7 @@ void loop() {
       calibNow=0;
     }
 
-    pressure = P.process(mprls_rawval/10) / MPRLS_DIVIDER + MPRLS_MID;
+    pressure = P.process(mprls_rawval) / MPRLS_DIVIDER + MPRLS_MID;
  
     // print values if desired
     if (chnMask) {

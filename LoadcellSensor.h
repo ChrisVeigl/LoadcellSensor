@@ -25,6 +25,8 @@
 #define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
 #define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
 
+#define GAIN                        1.00   // gain for incoming values
+
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 
@@ -48,6 +50,7 @@ public:
   void     setIdleDetectionPeriod(int32_t idleDetectionPeriod);
   void     setCompensationFactor(double compensationFactor);
   void     setCompensationDecay(double compensationDecay);
+  void     setGain(double gain);
   void     enableOvershootCompensation(bool b);
   void     enableAutoCalibration(bool b);
   bool     isMoving(void);
@@ -59,6 +62,7 @@ private:
   int32_t  movementThreshold;
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
   double   compensationDecay,compensationFactor;
+  double   gain;
   
   int32_t  raw,filtered,baseline,offset,bypassBaseline;
   int32_t  activity,lastFilteredValue,maxForce,compensationValue;

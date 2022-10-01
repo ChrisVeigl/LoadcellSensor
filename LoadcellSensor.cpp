@@ -43,7 +43,8 @@ LoadcellSensor::LoadcellSensor () {
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
   idleDetectionPeriod=IDLE_DETECTION_PERIOD;
   compensationFactor=COMPENSATION_FACTOR;
-  compensationDecay=COMPENSATION_DECAY;  
+  compensationDecay=COMPENSATION_DECAY;
+  gain=GAIN;
   accu=0;
   calib();
 }
@@ -58,6 +59,7 @@ LoadcellSensor::LoadcellSensor () {
 int32_t LoadcellSensor::process (int32_t value) {
   int32_t result=0;
 
+  value*=gain;
   raw=value;
   int32_t f=activityFilter(raw,afBuf);
   activity += abs(f-lastFilteredValue);  
@@ -215,6 +217,17 @@ void LoadcellSensor::setCompensationDecay(double compensationDecay) {
 void LoadcellSensor::enableOvershootCompensation(bool b) {
   overshootCompensationEnabled=b;
 }
+
+/**************************************************************************/
+/*!
+    @brief  sets gain for incopming values
+    @param  gain factor as float value
+*/
+/**************************************************************************/
+void LoadcellSensor::setGain(double gain) {
+  this->gain=gain;   
+}
+
 
 /**************************************************************************/
 /*!

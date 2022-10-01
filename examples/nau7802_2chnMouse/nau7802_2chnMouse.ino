@@ -29,7 +29,7 @@
 #define LED_PIN         LED_BUILTIN
 
 #define SLOWDOWN_FACTOR 800         // for cursor movment (bigger value -> slower movement)
-#define PLOT_LIMIT 15000            // limit for serial plotter values (to avoid display re-scale)
+#define PLOT_LIMIT 150000            // limit for serial plotter values (to avoid display re-scale)
 
 Adafruit_NAU7802 nau;
 LoadcellSensor X,Y;
@@ -54,6 +54,22 @@ void setup() {
   configureNAU();
   nau.setChannel(NAU7802_CHANNEL2);
   configureNAU();
+
+  /* 10K sensorboard settings */
+  // X.setMovementThreshold(2000);      Y.setMovementThreshold(2000);
+  // X.setIdleDetectionThreshold(3500); Y.setIdleDetectionThreshold(3500);
+
+  /* 100K sensorboard settings */
+  // X.setMovementThreshold(2500);      Y.setMovementThreshold(2500); 
+  // X.setIdleDetectionThreshold(4500); Y.setIdleDetectionThreshold(4500);
+
+  /* strain gauge sensorboard settings */
+  // X.setGain(0.08);                 Y.setGain(0.08);
+  // X.setCompensationFactor(0);      Y.setCompensationFactor(0);
+  // X.setMovementThreshold(1500);    Y.setMovementThreshold(1500);
+  // X.setIdleDetectionPeriod(100);   Y.setIdleDetectionPeriod(100);
+  // X.setIdleDetectionThreshold(50); Y.setIdleDetectionThreshold(50);
+
 }
 
 
