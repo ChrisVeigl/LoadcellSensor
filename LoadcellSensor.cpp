@@ -50,13 +50,13 @@ LoadcellSensor::LoadcellSensor () {
   lpNoise=LP_NOISE;
   lpActivity=LP_ACTIVITY;
   
-  initFilters(); 
+  initFilters(FILTERS_ALL); 
   calib();
   
 }
 
 LoadcellSensor::~LoadcellSensor () {
-  freeFilters();
+  freeFilters(FILTERS_ALL);
 }
 
 /**************************************************************************/
@@ -252,8 +252,8 @@ void LoadcellSensor::setGain(double gain) {
 /**************************************************************************/
 void LoadcellSensor::setSampleRate(double sampleRate) {
   this->sampleRate=sampleRate;
-  freeFilters();
-  initFilters();
+  freeFilters(FILTERS_ALL);
+  initFilters(FILTERS_ALL);
 }
 
 /**************************************************************************/
@@ -263,9 +263,11 @@ void LoadcellSensor::setSampleRate(double sampleRate) {
 */
 /**************************************************************************/
 void LoadcellSensor::setBaselineLowpass(double lpBaseline) {
-  this->lpBaseline=lpBaseline;   
-  freeFilters();
-  initFilters();
+  if (this->lpBaseline!=lpBaseline) {
+    this->lpBaseline=lpBaseline;   
+    freeFilters(FILTER_BASELINE);
+    initFilters(FILTER_BASELINE);
+  }
 }
 
 /**************************************************************************/
@@ -275,9 +277,11 @@ void LoadcellSensor::setBaselineLowpass(double lpBaseline) {
 */
 /**************************************************************************/
 void LoadcellSensor::setNoiseLowpass(double lpNoise) {
-  this->lpNoise=lpNoise;   
-  freeFilters();
-  initFilters();
+  if (this->lpNoise!=lpNoise) {
+    this->lpNoise=lpNoise;   
+    freeFilters(FILTER_NOISE);
+    initFilters(FILTER_NOISE);
+  }
 }
 
 /**************************************************************************/
@@ -287,9 +291,11 @@ void LoadcellSensor::setNoiseLowpass(double lpNoise) {
 */
 /**************************************************************************/
 void LoadcellSensor::setActivityLowpass(double lpActivity) {
-  this->lpActivity=lpActivity;   
-  freeFilters();
-  initFilters();
+  if (this->lpActivity!=lpActivity) {
+    this->lpActivity=lpActivity;   
+    freeFilters(FILTER_ACTIVITY);
+    initFilters(FILTER_ACTIVITY);
+  }
 }
 
 
@@ -333,36 +339,48 @@ void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
 /**************************************************************************/
 /*!
     @brief  initialise filters for actual sampling rate and cutoff frequencies
+    @param  filterMask: a binary mask byte, identifying the filter(s)
 */
 /**************************************************************************/
 
-void LoadcellSensor::initFilters() 
+void LoadcellSensor::initFilters(uint8_t filterMask) 
 {
-  filt_baseline=fid_design((char *)"LpBe2", sampleRate, lpBaseline, 0, 0, 0);
-  run_baseline= fid_run_new(filt_baseline, &func_baseline);
-  fbuf_baseline= fid_run_newbuf(run_baseline);
-
-  filt_noise=fid_design((char *)"LpBe2", sampleRate, lpNoise, 0, 0, 0);
-  run_noise= fid_run_new(filt_noise, &func_noise);
-  fbuf_noise= fid_run_newbuf(run_noise);
-
-  filt_activity=fid_design((char *)"LpBe2", sampleRate, lpActivity, 0, 0, 0);
-  run_activity= fid_run_new(filt_activity, &func_activity);
-  fbuf_activity= fid_run_newbuf(run_activity);
+  if (filterMask & FILTER_BASELINE) {
+	  filt_baseline=fid_design((char *)"LpBe2", sampleRate, lpBaseline, 0, 0, 0);
+	  run_baseline= fid_run_new(filt_baseline, &func_baseline);
+	  fbuf_baseline= fid_run_newbuf(run_baseline);
+  }
+  if (filterMask & FILTER_NOISE) {
+	  filt_noise=fid_design((char *)"LpBe2", sampleRate, lpNoise, 0, 0, 0);
+	  run_noise= fid_run_new(filt_noise, &func_noise);
+	  fbuf_noise= fid_run_newbuf(run_noise);
+  }
+  if (filterMask & FILTER_ACTIVITY) {
+	  filt_activity=fid_design((char *)"LpBe2", sampleRate, lpActivity, 0, 0, 0);
+	  run_activity= fid_run_new(filt_activity, &func_activity);
+	  fbuf_activity= fid_run_newbuf(run_activity);
+  }
 }
 
 /**************************************************************************/
 /*!
     @brief  free filters and allocated buffers
+    @param  filterMask: a binary mask byte, identifying the filter(s)
 */
 /**************************************************************************/
-void LoadcellSensor::freeFilters()
+void LoadcellSensor::freeFilters(uint8_t filterMask)
 {
-  fid_run_freebuf(run_baseline);
-  fid_run_free(filt_baseline);
-  fid_run_freebuf(run_noise);
-  fid_run_free(filt_noise);
-  fid_run_freebuf(run_activity);
-  fid_run_free(filt_activity);
+  if (filterMask & FILTER_BASELINE) {
+	  fid_run_freebuf(run_baseline);
+	  fid_run_free(filt_baseline);
+  }
+  if (filterMask & FILTER_NOISE) {
+	  fid_run_freebuf(run_noise);
+	  fid_run_free(filt_noise);
+  }
+  if (filterMask & FILTER_ACTIVITY) {
+	  fid_run_freebuf(run_activity);
+	  fid_run_free(filt_activity);
+  }
 }
 

@@ -39,6 +39,11 @@ extern "C" {
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
 
+#define FILTER_BASELINE   (1<<0)
+#define FILTER_NOISE      (1<<1)
+#define FILTER_ACTIVITY   (1<<2)
+#define FILTERS_ALL       (FILTER_BASELINE|FILTER_NOISE|FILTER_ACTIVITY)
+
 /**************************************************************************/
 /*!
     @brief  LoadcellSensor class
@@ -98,7 +103,7 @@ private:
   void *fbuf_activity;  
 
   int      sgn(int x);
-  void     initFilters();
-  void     freeFilters();
+  void     initFilters(uint8_t filterMask);
+  void     freeFilters(uint8_t filterMask);
   
 };
