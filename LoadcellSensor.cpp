@@ -9,8 +9,7 @@
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
   Overshoot compensation and automatic calibration are supported.
-  Note: currently the values should be fed into the LoadcellSensor::process() method periodically (ca. 25Hz)
-  TBD: flexible update periods, flexible filter paramters
+  Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
   http://uazu.net/fiview/
@@ -27,6 +26,7 @@
 
 #include <Arduino.h>
 #include "LoadcellSensor.h"
+
 
 /**************************************************************************/
 /*!
@@ -45,8 +45,18 @@ LoadcellSensor::LoadcellSensor () {
   compensationFactor=COMPENSATION_FACTOR;
   compensationDecay=COMPENSATION_DECAY;
   gain=GAIN;
-  accu=0;
+  sampleRate=SAMPLE_RATE;
+  lpBaseline=LP_BASELINE;
+  lpNoise=LP_NOISE;
+  lpActivity=LP_ACTIVITY;
+  
+  initFilters(FILTERS_ALL); 
   calib();
+  
+}
+
+LoadcellSensor::~LoadcellSensor () {
+  freeFilters(FILTERS_ALL);
 }
 
 /**************************************************************************/
@@ -61,7 +71,7 @@ int32_t LoadcellSensor::process (int32_t value) {
 
   value*=gain;
   raw=value;
-  int32_t f=activityFilter(raw,afBuf);
+  int32_t f=func_activity(fbuf_activity,raw);
   activity += abs(f-lastFilteredValue);  
   lastFilteredValue=f;
 
@@ -74,7 +84,7 @@ int32_t LoadcellSensor::process (int32_t value) {
   }
 
   // calculate filtered channel value
-  filtered= noiseFilter(raw,nfBuf);
+  filtered= func_noise(fbuf_noise,raw);
 
   // autocalibration / idle detection
   if (autoCalibrationEnabled) {
@@ -96,12 +106,16 @@ int32_t LoadcellSensor::process (int32_t value) {
       maxForce=0;
     }
 	if (!bypassBaseline)
-      baseline=baselineFilter(raw,blBuf);  // feed new values for baseline
+		baseline= func_baseline(fbuf_baseline,raw);
     else bypassBaseline--;
   }  
 
   if (abs(filtered-baseline) > movementThreshold + abs(compensationValue) ) {  // moving! hlastFilteredValue baselineX as it is!
-    if (!moving) activity+=idleDetectionThreshold;
+    if (!moving) {
+		activityTimestamp=millis();
+		activity+=idleDetectionThreshold;
+		
+	}
     moving=true;
 	bypassBaseline=BYPASS_BASELINE;
     result=filtered-baseline; 
@@ -130,10 +144,11 @@ int LoadcellSensor::sgn(int x) {
 */
 /**************************************************************************/
 void LoadcellSensor::calib(void) {  // perform offset calibration
-  memset(afBuf,0,sizeof(afBuf));
-  memset(nfBuf,0,sizeof(nfBuf));
-  memset(blBuf,0,sizeof(blBuf));
-  baseline=baselineFilter(0,blBuf);
+  fid_run_zapbuf(fbuf_baseline);
+  fid_run_zapbuf(fbuf_noise);
+  fid_run_zapbuf(fbuf_activity);
+  baseline= func_baseline(fbuf_baseline, 0);
+
   offset+=filtered;
 }
 
@@ -220,13 +235,69 @@ void LoadcellSensor::enableOvershootCompensation(bool b) {
 
 /**************************************************************************/
 /*!
-    @brief  sets gain for incopming values
-    @param  gain factor as float value
+    @brief  sets gain for incoming values
+    @param  gain factor
 */
 /**************************************************************************/
 void LoadcellSensor::setGain(double gain) {
   this->gain=gain;   
 }
+
+
+/**************************************************************************/
+/*!
+    @brief  sets sampling rate for signal processing / filtering
+    @param  sampleRate: sampling rate (Hz)
+*/
+/**************************************************************************/
+void LoadcellSensor::setSampleRate(double sampleRate) {
+  this->sampleRate=sampleRate;
+  freeFilters(FILTERS_ALL);
+  initFilters(FILTERS_ALL);
+}
+
+/**************************************************************************/
+/*!
+    @brief  sets low pass filter for baseline adjustment
+    @param  lpBaseline: low pass cutoff frequency
+*/
+/**************************************************************************/
+void LoadcellSensor::setBaselineLowpass(double lpBaseline) {
+  if (this->lpBaseline!=lpBaseline) {
+    this->lpBaseline=lpBaseline;   
+    freeFilters(FILTER_BASELINE);
+    initFilters(FILTER_BASELINE);
+  }
+}
+
+/**************************************************************************/
+/*!
+    @brief  sets low pass filter for noise removal from signal
+    @param  lpNoise: low pass cutoff frequency
+*/
+/**************************************************************************/
+void LoadcellSensor::setNoiseLowpass(double lpNoise) {
+  if (this->lpNoise!=lpNoise) {
+    this->lpNoise=lpNoise;   
+    freeFilters(FILTER_NOISE);
+    initFilters(FILTER_NOISE);
+  }
+}
+
+/**************************************************************************/
+/*!
+    @brief  sets low pass filter for activity measurement
+    @param  lpActivity: low pass cutoff frequency
+*/
+/**************************************************************************/
+void LoadcellSensor::setActivityLowpass(double lpActivity) {
+  if (this->lpActivity!=lpActivity) {
+    this->lpActivity=lpActivity;   
+    freeFilters(FILTER_ACTIVITY);
+    initFilters(FILTER_ACTIVITY);
+  }
+}
+
 
 
 /**************************************************************************/
@@ -265,60 +336,51 @@ void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
   if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit));else Serial.print("0"); Serial.print(" ");
 }
 
+/**************************************************************************/
+/*!
+    @brief  initialise filters for actual sampling rate and cutoff frequencies
+    @param  filterMask: a binary mask byte, identifying the filter(s)
+*/
+/**************************************************************************/
 
+void LoadcellSensor::initFilters(uint8_t filterMask) 
+{
+  if (filterMask & FILTER_BASELINE) {
+	  filt_baseline=fid_design((char *)"LpBe2", sampleRate, lpBaseline, 0, 0, 0);
+	  run_baseline= fid_run_new(filt_baseline, &func_baseline);
+	  fbuf_baseline= fid_run_newbuf(run_baseline);
+  }
+  if (filterMask & FILTER_NOISE) {
+	  filt_noise=fid_design((char *)"LpBe2", sampleRate, lpNoise, 0, 0, 0);
+	  run_noise= fid_run_new(filt_noise, &func_noise);
+	  fbuf_noise= fid_run_newbuf(run_noise);
+  }
+  if (filterMask & FILTER_ACTIVITY) {
+	  filt_activity=fid_design((char *)"LpBe2", sampleRate, lpActivity, 0, 0, 0);
+	  run_activity= fid_run_new(filt_activity, &func_activity);
+	  fbuf_activity= fid_run_newbuf(run_activity);
+  }
+}
 
 /**************************************************************************/
 /*!
-    @brief  3Hz Lowpass Bessel, 2nd Order (./fiview 25 -i LpBe2/3)
-    @param  val the next incoming signal value
-    @param  buf a pointer to a buffer for working data (2 double values needed)
-    @return  the filtered signal
+    @brief  free filters and allocated buffers
+    @param  filterMask: a binary mask byte, identifying the filter(s)
 */
 /**************************************************************************/
-double LoadcellSensor::noiseFilter(double val, double * buf) {
-   double tmp, fir, iir;
-   tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
-   val *= 0.1193072508536958;
-   iir= val+0.7021409471770795*buf[0]-0.1793699505918626*tmp;
-   fir= iir+buf[0]+buf[0]+tmp;
-   buf[1]= iir; val= fir;
-   return val;
+void LoadcellSensor::freeFilters(uint8_t filterMask)
+{
+  if (filterMask & FILTER_BASELINE) {
+	  fid_run_freebuf(run_baseline);
+	  fid_run_free(filt_baseline);
+  }
+  if (filterMask & FILTER_NOISE) {
+	  fid_run_freebuf(run_noise);
+	  fid_run_free(filt_noise);
+  }
+  if (filterMask & FILTER_ACTIVITY) {
+	  fid_run_freebuf(run_activity);
+	  fid_run_free(filt_activity);
+  }
 }
 
-
-/**************************************************************************/
-/*!
-    @brief  0.1Hz Lowpass Bessel, 2nd Order (./fiview 25 -i LpBe2/0.1)
-    @param  val the next incoming signal value
-    @param  buf a pointer to a buffer for working data (2 double values needed)
-    @return  the filtered signal
-*/
-/**************************************************************************/
-double LoadcellSensor::baselineFilter(double val, double * buf) {
-   double tmp, fir, iir;
-   tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
-   val *= 0.0002485901688812353;
-   iir= val+1.945135508892326*buf[0]-0.9461298695678511*tmp;
-   fir= iir+buf[0]+buf[0]+tmp;
-   buf[1]= iir; val= fir;
-   return val;
-}
-
-
-/**************************************************************************/
-/*!
-    @brief  5Hz Lowpass Bessel, 2nd Order (./fiview 25 -i LpBe2/5)
-    @param  val the next incoming signal value
-    @param  buf a pointer to a buffer for working data (2 double values needed)
-    @return  the filtered signal
-*/
-/**************************************************************************/
-double LoadcellSensor::activityFilter(double val, double * buf) {
-   double tmp, fir, iir;
-   tmp= buf[0]; memmove(buf, buf+1, 1*sizeof(double));
-   val *= 0.06378257264840968;
-   iir= val+1.068354407019735*buf[0]-0.3234846976133736*tmp;
-   fir= iir+buf[0]+buf[0]+tmp;
-   buf[1]= iir; val= fir;
-   return val;
-}
