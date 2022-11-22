@@ -32,12 +32,12 @@ extern "C" {
 
 // default signal conditioning parameters
 #define GAIN                        1.00   // gain for incoming values
-#define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement
-#define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
+#define MOVEMENT_THRESHOLD          2000   // deflection from baseline which indicates a valid movement
+#define COMPENSATION_DECAY          0.98   // overshoot compensation time (close to 1 -> slower decay)
 #define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
-#define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
+#define BYPASS_BASELINE             4      // bypass baseline calculation n times after a movement (avoid drift)
 
 #define FILTER_BASELINE   (1<<0)
 #define FILTER_NOISE      (1<<1)
@@ -76,13 +76,13 @@ public:
 
 private:
 
-  int32_t  movementThreshold;
+  int32_t  movementThreshold,movState;
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
   double   compensationDecay,compensationFactor;
   double   gain;
   double   sampleRate,lpBaseline,lpNoise,lpActivity;
   
-  int32_t  raw,filtered,baseline,offset,bypassBaseline;
+  int32_t  raw,filtered,baseline,offset,bypassBaseline,lastGradientValue,gradient;
   int32_t  activity,lastFilteredValue,maxForce,compensationValue;
   bool     moving,overshootCompensationEnabled,autoCalibrationEnabled;
   uint32_t activityTimestamp=0;
