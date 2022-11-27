@@ -98,7 +98,8 @@ int32_t LoadcellSensor::process (int32_t value) {
   }
 
   // handle baseline and movement
-  if ((abs(filtered-baseline) <= movementThreshold + abs(compensationValue)) ||
+  int actThreshold = movementThreshold + abs(compensationValue);
+  if ((abs(filtered-baseline) <= actThreshold ) ||
      ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
     moving=false; 
     if (maxForce!=0) {
@@ -110,7 +111,7 @@ int32_t LoadcellSensor::process (int32_t value) {
     else bypassBaseline--;
   }  
 
-  if (abs(filtered-baseline) > movementThreshold + abs(compensationValue) ) {  // moving! hlastFilteredValue baselineX as it is!
+  if (abs(filtered-baseline) > actThreshold ) {  // moving! leave baseline as it is!
     if (!moving) {
 		activityTimestamp=millis();
 		activity+=idleDetectionThreshold;
@@ -122,6 +123,8 @@ int32_t LoadcellSensor::process (int32_t value) {
     if (abs(result) > abs(maxForce)) {
       maxForce=result;
     }
+	if (result < 0) result += actThreshold; 
+	else result -= actThreshold;
   }
 
   return(result);
