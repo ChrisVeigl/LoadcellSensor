@@ -77,11 +77,8 @@ int32_t LoadcellSensor::process (int32_t value) {
 
   // adjust raw values: offset and overshoot compensation
   raw-=offset;
-
-  if (overshootCompensationEnabled && (compensationValue!=0)) {
-    raw+=compensationValue;
-    compensationValue*=compensationDecay;
-  }
+  if (!overshootCompensationEnabled) 
+    compensationValue=0;
 
   // calculate filtered channel value
   filtered= func_noise(fbuf_noise,raw);
@@ -99,13 +96,15 @@ int32_t LoadcellSensor::process (int32_t value) {
 
   // handle baseline and movement
   int actThreshold = movementThreshold + abs(compensationValue);
-  if ((abs(filtered-baseline) <= actThreshold ) ||
-     ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
+  if ((abs(filtered-baseline) <= actThreshold )) {
+      // || ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
     moving=false; 
-    if (maxForce!=0) {
-      compensationValue+=maxForce*compensationFactor;
+    if (maxForce!=0)
       maxForce=0;
-    }
+
+    if (compensationValue>0) 
+	  compensationValue*=compensationDecay;
+
 	if (!bypassBaseline)
 		baseline= func_baseline(fbuf_baseline,raw);
     else bypassBaseline--;
@@ -118,10 +117,12 @@ int32_t LoadcellSensor::process (int32_t value) {
 		
 	}
     moving=true;
-	bypassBaseline=BYPASS_BASELINE;
+	// bypassBaseline=BYPASS_BASELINE;
     result=filtered-baseline; 
     if (abs(result) > abs(maxForce)) {
       maxForce=result;
+      if (overshootCompensationEnabled) 
+        compensationValue = abs(maxForce*compensationFactor);
     }
 	if (result < 0) result += actThreshold; 
 	else result -= actThreshold;
@@ -332,11 +333,22 @@ bool LoadcellSensor::isMoving(void) {
 */
 /**************************************************************************/
 void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
-  if (mask&1) Serial.print(constrain(raw,-limit,limit)); else Serial.print("0"); Serial.print(" ");
-  if (mask&2) Serial.print(constrain(filtered,-limit,limit)); else Serial.print("0"); Serial.print(" ");
-  if (mask&4) Serial.print(constrain(baseline,-limit,limit)); else Serial.print("0"); Serial.print(" ");
-  if (overshootCompensationEnabled) Serial.print(constrain(compensationValue,-limit,limit));else Serial.print("0"); Serial.print(" ");
-  if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit));else Serial.print("0"); Serial.print(" ");
+  if (mask&1) Serial.print(constrain(raw,-limit,limit)); else Serial.print("0"); 
+  Serial.print(" ");
+  if (mask&2) Serial.print(constrain(filtered,-limit,limit)); else Serial.print("0");
+  Serial.print(" ");
+  if (mask&4) { 
+    Serial.print(constrain(baseline,-limit,limit));
+    Serial.print(" ");
+    if (overshootCompensationEnabled) {
+      Serial.print(constrain(baseline-movementThreshold-compensationValue,-limit,limit));
+	  Serial.print(" ");
+      Serial.print(constrain(baseline+movementThreshold+compensationValue,-limit,limit));
+    } else Serial.print("0 0");
+  }  else Serial.print("0");
+  Serial.print(" ");
+  if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit)); else Serial.print("0");
+  Serial.print(" ");
 }
 
 /**************************************************************************/
