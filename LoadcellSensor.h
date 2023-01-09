@@ -32,13 +32,20 @@ extern "C" {
 
 // default signal conditioning parameters
 #define GAIN                        1.00   // gain for incoming values
-#define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement
+#define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement (gain normalized)
 #define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
 #define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
-#define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration
+#define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration (gain normalized)
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
 
+// other signal processing settings (fixed)
+#define MAXIMUM_GRADIENT_NOMOVEMENT 500   // the maximum signal gradient for updating the baseline when not moving (gain normalized)
+#define MINIMUM_COMPENSATION_VALUE  400   // the minimum compensation of movement threshold after a movement (gain normalized)
+#define BASELINE_ADAPTIVE_FEEDRATE    5   // baseline lowpass filter adaption (higher feed rate after a movement)
+#define BYPASS_BASELINE_AFTER_MOVEMENT 1  // bypass baseline adjustment for n samples after a movement)
+
+// filter identification bitmasks
 #define FILTER_BASELINE   (1<<0)
 #define FILTER_NOISE      (1<<1)
 #define FILTER_ACTIVITY   (1<<2)
@@ -82,10 +89,10 @@ private:
   double   gain;
   double   sampleRate,lpBaseline,lpNoise,lpActivity;
   
-  int32_t  raw,filtered,baseline,offset,bypassBaseline;
-  int32_t  activity,lastFilteredValue,maxForce,compensationValue;
+  int32_t  raw,filtered,activity,baseline,offset,bypassBaseline,gradient;
+  int32_t  lastFilteredValue,lastActivityValue,maxForce,compensationValue;
   bool     moving,overshootCompensationEnabled,autoCalibrationEnabled;
-  uint32_t activityTimestamp=0;
+  uint32_t activityTimestamp=0,feedRate;
 
   FidFilter * filt_baseline;
   FidRun *run_baseline;

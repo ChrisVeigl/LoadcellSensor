@@ -34,10 +34,12 @@
 */
 /**************************************************************************/
 LoadcellSensor::LoadcellSensor () {
-  offset=activity=lastFilteredValue=maxForce=compensationValue=0;
+  offset=activity=maxForce=compensationValue=0;
+  lastFilteredValue=lastActivityValue=0;
   overshootCompensationEnabled=autoCalibrationEnabled=true;
   activityTimestamp=0;
-  bypassBaseline=0;
+  bypassBaseline=0;gradient=0;
+  feedRate=1;
   moving=false;
   movementThreshold=MOVEMENT_THRESHOLD;
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
@@ -71,9 +73,9 @@ int32_t LoadcellSensor::process (int32_t value) {
 
   value*=gain;
   raw=value;
-  int32_t f=func_activity(fbuf_activity,raw);
-  activity += abs(f-lastFilteredValue);  
-  lastFilteredValue=f;
+  int32_t a=func_activity(fbuf_activity,raw);
+  activity += abs(a-lastActivityValue);  
+  lastActivityValue=a;
 
   // adjust raw values: offset and overshoot compensation
   raw-=offset;
@@ -82,11 +84,13 @@ int32_t LoadcellSensor::process (int32_t value) {
 
   // calculate filtered channel value
   filtered= func_noise(fbuf_noise,raw);
+  gradient=filtered-lastFilteredValue;
+  lastFilteredValue=filtered;
 
   // autocalibration / idle detection
   if (autoCalibrationEnabled) {
     if (millis()-activityTimestamp > idleDetectionPeriod) { 
-      if (activity < idleDetectionThreshold) { 
+      if (activity < idleDetectionThreshold * gain) { 
         if (moving) calib(); 
       }
       clearActivity();
@@ -95,34 +99,41 @@ int32_t LoadcellSensor::process (int32_t value) {
   }
 
   // handle baseline and movement
-  int actThreshold = movementThreshold + abs(compensationValue);
+  int actThreshold = movementThreshold * gain + abs(compensationValue);
   if ((abs(filtered-baseline) <= actThreshold )) {
       // || ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
     moving=false; 
     if (maxForce!=0)
       maxForce=0;
 
-    if (compensationValue>0) 
-	  compensationValue*=compensationDecay;
 
-	if (!bypassBaseline)
-		baseline= func_baseline(fbuf_baseline,raw);
-    else bypassBaseline--;
+    if ((!bypassBaseline) && (abs(gradient) < MAXIMUM_GRADIENT_NOMOVEMENT*gain)) {
+	  for (int i=0;i<=feedRate/2;i++)
+        baseline= func_baseline(fbuf_baseline,raw);
+	  if (feedRate) feedRate--;
+
+      if (compensationValue>0) 
+	    compensationValue*=compensationDecay;
+	} else if (bypassBaseline) bypassBaseline--;
   }  
 
   if (abs(filtered-baseline) > actThreshold ) {  // moving! leave baseline as it is!
     if (!moving) {
-		activityTimestamp=millis();
-		activity+=idleDetectionThreshold;
-		
+      activityTimestamp=millis();
+      activity+=idleDetectionThreshold;
+      moving=true;
+	  feedRate=BASELINE_ADAPTIVE_FEEDRATE;
+	  bypassBaseline=BYPASS_BASELINE_AFTER_MOVEMENT;
 	}
-    moving=true;
-	// bypassBaseline=BYPASS_BASELINE;
     result=filtered-baseline; 
     if (abs(result) > abs(maxForce)) {
       maxForce=result;
-      if (overshootCompensationEnabled) 
-        compensationValue = abs(maxForce*compensationFactor);
+      if ((overshootCompensationEnabled)) // && (compensationValue < abs(maxForce*compensationFactor)))
+	  {
+		  compensationValue = abs(maxForce*compensationFactor);
+		  if (compensationValue < MINIMUM_COMPENSATION_VALUE * gain) 
+			  compensationValue = MINIMUM_COMPENSATION_VALUE * gain;
+	  }
     }
 	if (result < 0) result += actThreshold; 
 	else result -= actThreshold;
