@@ -78,6 +78,7 @@ public:
   void     enableOvershootCompensation(bool b);
   void     enableAutoCalibration(bool b);
   bool     isMoving(void);
+  void     lockBaseline(bool b);
   void     printValues(uint8_t mask, int32_t limit);
 
 
@@ -91,7 +92,7 @@ private:
   
   int32_t  raw,filtered,activity,baseline,offset,bypassBaseline,gradient;
   int32_t  lastFilteredValue,lastActivityValue,maxForce,compensationValue;
-  bool     moving,overshootCompensationEnabled,autoCalibrationEnabled;
+  bool     moving,overshootCompensationEnabled,autoCalibrationEnabled,baselineLocked;
   uint32_t activityTimestamp=0,feedRate;
 
   FidFilter * filt_baseline;

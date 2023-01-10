@@ -40,7 +40,7 @@ LoadcellSensor::LoadcellSensor () {
   activityTimestamp=0;
   bypassBaseline=0;gradient=0;
   feedRate=1;
-  moving=false;
+  moving=false;baselineLocked=false;
   movementThreshold=MOVEMENT_THRESHOLD;
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
   idleDetectionPeriod=IDLE_DETECTION_PERIOD;
@@ -108,9 +108,11 @@ int32_t LoadcellSensor::process (int32_t value) {
 
 
     if ((!bypassBaseline) && (abs(gradient) < MAXIMUM_GRADIENT_NOMOVEMENT*gain)) {
-	  for (int i=0;i<=feedRate/2;i++)
-        baseline= func_baseline(fbuf_baseline,raw);
-	  if (feedRate) feedRate--;
+      if (!baselineLocked) {
+        for (int i=0;i<=feedRate/2;i++)
+          baseline= func_baseline(fbuf_baseline,raw);
+	    if (feedRate) feedRate--;
+      }
 
       if (compensationValue>0) 
 	    compensationValue*=compensationDecay;
@@ -327,13 +329,24 @@ void LoadcellSensor::enableAutoCalibration(bool b) {
 
 /**************************************************************************/
 /*!
-    @brief  returns if movemetn is currently active
+    @brief  returns if movement is currently active
     @return true if movement active, false otherwise    
 */
 /**************************************************************************/
 bool LoadcellSensor::isMoving(void) {
   return (moving);
 }
+
+/**************************************************************************/
+/*!
+    @brief  sets the lockmode for baseline updates
+    @return none
+*/
+/**************************************************************************/
+void LoadcellSensor::lockBaseline(bool b) {
+  baselineLocked=b;
+}
+
 
 /**************************************************************************/
 /*!
