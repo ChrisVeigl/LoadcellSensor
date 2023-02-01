@@ -64,14 +64,13 @@ void setup() {
   // X.setIdleDetectionThreshold(4500); Y.setIdleDetectionThreshold(4500);
 
   /* strain gauge sensorboard settings */
-  // X.setGain(0.08);                 Y.setGain(0.08);
-  // X.setCompensationFactor(0);      Y.setCompensationFactor(0);
-  // X.setMovementThreshold(1500);    Y.setMovementThreshold(1500);
-  // X.setIdleDetectionPeriod(100);   Y.setIdleDetectionPeriod(100);
-  // X.setIdleDetectionThreshold(50); Y.setIdleDetectionThreshold(50);
+   X.setGain(0.1);                 Y.setGain(0.1);
+   X.setCompensationFactor(0);      Y.setCompensationFactor(0);
+   // X.setCompensationDecay(0.80);      Y.setCompensationDecay(0.80);
+   X.setMovementThreshold(500);    Y.setMovementThreshold(500);
+   X.setIdleDetectionPeriod(200);   Y.setIdleDetectionPeriod(200);
+   X.setIdleDetectionThreshold(120); Y.setIdleDetectionThreshold(120);
 
-   X.setCompensationFactor(0.2);      Y.setCompensationFactor(0.2);
-   X.setCompensationDecay(0.98);      Y.setCompensationDecay(0.98);
 
 
 }
