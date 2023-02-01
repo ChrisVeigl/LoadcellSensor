@@ -90,7 +90,7 @@ int32_t LoadcellSensor::process (int32_t value) {
   // autocalibration / idle detection
   if (autoCalibrationEnabled) {
     if (millis()-activityTimestamp > idleDetectionPeriod) { 
-      if (activity < idleDetectionThreshold * gain) { 
+      if (activity < idleDetectionThreshold) { 
         if (moving) calib(); 
       }
       clearActivity();
@@ -99,7 +99,7 @@ int32_t LoadcellSensor::process (int32_t value) {
   }
 
   // handle baseline and movement
-  int actThreshold = movementThreshold * gain + abs(compensationValue);
+  int actThreshold = movementThreshold + abs(compensationValue);
   if ((abs(filtered-baseline) <= actThreshold )) {
       // || ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
     moving=false; 
@@ -107,7 +107,7 @@ int32_t LoadcellSensor::process (int32_t value) {
       maxForce=0;
 
 
-    if ((!bypassBaseline) && (abs(gradient) < MAXIMUM_GRADIENT_NOMOVEMENT*gain)) {
+    if ((!bypassBaseline) && (abs(gradient) < MAXIMUM_GRADIENT_NOMOVEMENT)) {
       if (!baselineLocked) {
         for (int i=0;i<=feedRate/2;i++)
           baseline= func_baseline(fbuf_baseline,raw);
@@ -133,8 +133,8 @@ int32_t LoadcellSensor::process (int32_t value) {
       if ((overshootCompensationEnabled)) // && (compensationValue < abs(maxForce*compensationFactor)))
 	  {
 		  compensationValue = abs(maxForce*compensationFactor);
-		  if (compensationValue < MINIMUM_COMPENSATION_VALUE * gain) 
-			  compensationValue = MINIMUM_COMPENSATION_VALUE * gain;
+		  if (compensationValue < MINIMUM_COMPENSATION_VALUE) 
+			  compensationValue = MINIMUM_COMPENSATION_VALUE;
 	  }
     }
 	if (result < 0) result += actThreshold; 
