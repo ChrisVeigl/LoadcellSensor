@@ -36,7 +36,7 @@
 LoadcellSensor::LoadcellSensor () {
   offset=activity=maxForce=compensationValue=0;
   lastFilteredValue=lastActivityValue=0;
-  overshootCompensationEnabled=autoCalibrationEnabled=true;
+  overshootCompensationEnabled=autoCalibrationEnabled=starting=true;
   activityTimestamp=0;
   bypassBaseline=0;gradient=0;
   feedRate=1;
@@ -46,6 +46,7 @@ LoadcellSensor::LoadcellSensor () {
   idleDetectionPeriod=IDLE_DETECTION_PERIOD;
   compensationFactor=COMPENSATION_FACTOR;
   compensationDecay=COMPENSATION_DECAY;
+  startupTime=STARTUP_TIME;
   gain=GAIN;
   sampleRate=SAMPLE_RATE;
   lpBaseline=LP_BASELINE;
@@ -53,6 +54,7 @@ LoadcellSensor::LoadcellSensor () {
   lpActivity=LP_ACTIVITY;
   
   initFilters(FILTERS_ALL); 
+  startupTimestamp=millis();
   calib();
   
 }
@@ -86,6 +88,15 @@ int32_t LoadcellSensor::process (int32_t value) {
   filtered= func_noise(fbuf_noise,raw);
   gradient=filtered-lastFilteredValue;
   lastFilteredValue=filtered;
+  
+  // calibrate offset after startup phase
+  if (starting) {
+	  calib();
+	  if (millis()-startupTimestamp > startupTime) {
+		  starting=false;
+	  }	  
+  }
+  
 
   // autocalibration / idle detection
   if (autoCalibrationEnabled) {
@@ -141,6 +152,7 @@ int32_t LoadcellSensor::process (int32_t value) {
 	else result -= actThreshold;
   }
 
+  if (starting) result=0;   // return 0 in startup phase
   return(result);
 }
 
@@ -315,7 +327,9 @@ void LoadcellSensor::setActivityLowpass(double lpActivity) {
   }
 }
 
-
+void LoadcellSensor::setStartupTime(uint32_t ms) {
+	this->startupTime=ms;
+}
 
 /**************************************************************************/
 /*!

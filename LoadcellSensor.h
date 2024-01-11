@@ -38,6 +38,7 @@ extern "C" {
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration (gain normalized)
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
+#define STARTUP_TIME                200    // return 0 for signal result until startup time passed, to let signal settle
 
 // other signal processing settings (fixed)
 #define MAXIMUM_GRADIENT_NOMOVEMENT 500   // the maximum signal gradient for updating the baseline when not moving (gain normalized)
@@ -71,6 +72,7 @@ public:
   void     setCompensationFactor(double compensationFactor);
   void     setCompensationDecay(double compensationDecay);
   void     setGain(double gain);
+  void     setStartupTime(uint32_t ms);
   void     setSampleRate(double sampleRate);
   void     setBaselineLowpass(double lpBaseline);
   void     setNoiseLowpass(double lpNoise);
@@ -92,8 +94,8 @@ private:
   
   int32_t  raw,filtered,activity,baseline,offset,bypassBaseline,gradient;
   int32_t  lastFilteredValue,lastActivityValue,maxForce,compensationValue;
-  bool     moving,overshootCompensationEnabled,autoCalibrationEnabled,baselineLocked;
-  uint32_t activityTimestamp=0,feedRate;
+  bool     moving,starting,overshootCompensationEnabled,autoCalibrationEnabled,baselineLocked;
+  uint32_t activityTimestamp=0,startupTimestamp,startupTime,feedRate;
 
   FidFilter * filt_baseline;
   FidRun *run_baseline;
