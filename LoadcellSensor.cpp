@@ -8,7 +8,7 @@
   for application in HCI applications (e.g. for mouse cursor control).
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
-  Overshoot compensation and automatic calibration are supported.
+  Automatic calibration is supported (either by resetting the baseline or by apating movement thresholds).
   Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
@@ -34,7 +34,7 @@
 */
 /**************************************************************************/
 LoadcellSensor::LoadcellSensor () {
-  offset=activity=compensationValue=0;
+  offset=activity=thresholdCorrection=0;
   lastFilteredValue=lastActivityValue=0;
   autoCalibrationMode=AUTOCALIBRATION_RESET_BASELINE;
   activityTimestamp=0;
@@ -42,7 +42,7 @@ LoadcellSensor::LoadcellSensor () {
   movementThreshold=MOVEMENT_THRESHOLD;
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
   idleDetectionPeriod=IDLE_DETECTION_PERIOD;
-  compensationDecay=COMPENSATION_DECAY;
+  thresholdDecay=THRESHOLD_DECAY;
   gain=GAIN;
   sampleRate=SAMPLE_RATE;
   lpBaseline=LP_BASELINE;
@@ -74,7 +74,7 @@ int32_t LoadcellSensor::process (int32_t value) {
   activity += abs(a-lastActivityValue);  
   lastActivityValue=a;
 
-  // adjust raw values: offset and overshoot compensation
+  // remove offset from adjust raw values 
   raw-=offset;
 
   // calculate filtered channel value
@@ -91,7 +91,7 @@ int32_t LoadcellSensor::process (int32_t value) {
 						calib();
 					break;					
 				case AUTOCALIBRATION_ADAPT_THRESHOLD:
-						compensationValue += THRESHOLD_CORRECTION_VALUE;  // abs(maxForce)/10
+						thresholdCorrection += THRESHOLD_CORRECTION_VALUE;  // abs(maxForce)/10
 					break;
 			}
 		}
@@ -101,15 +101,15 @@ int32_t LoadcellSensor::process (int32_t value) {
   }
 
   // handle baseline and movement
-  int actThreshold = movementThreshold + abs(compensationValue);
+  int actThreshold = movementThreshold + abs(thresholdCorrection);
   if ((abs(filtered-baseline) <= actThreshold )) {
     moving=false; 
 
     if (!baselineLocked) 
         baseline= func_baseline(fbuf_baseline,raw);
 
-    if (compensationValue>0) 
-	    compensationValue*=compensationDecay;
+    if (thresholdCorrection>0) 
+	    thresholdCorrection*=thresholdDecay;
   }  
 
   if (abs(filtered-baseline) > actThreshold ) {  // moving! leave baseline as it is!
@@ -203,12 +203,12 @@ void LoadcellSensor::setIdleDetectionPeriod(int32_t idleDetectionPeriod) {
 
 /**************************************************************************/
 /*!
-    @brief  sets overshoot compensation decay
-    @param  compensationDecay  the compensation decay (0-1, close to 1 -> long decay)
+    @brief  sets overshoot threshold decay
+    @param  thresholdDecay the threshold decay (0-1, close to 1 -> long decay)
 */
 /**************************************************************************/
-void LoadcellSensor::setCompensationDecay(double compensationDecay) {
-  this->compensationDecay=compensationDecay;   
+void LoadcellSensor::setThresholdDecay(double thresholdDecay) {
+  this->thresholdDecay=thresholdDecay;   
 }
 
 
@@ -325,9 +325,9 @@ void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
   if (mask&4) { 
     Serial.print(constrain(baseline,-limit,limit));
     Serial.print(" ");
-	Serial.print(constrain(baseline-movementThreshold-compensationValue,-limit,limit));
+	Serial.print(constrain(baseline-movementThreshold-thresholdCorrection,-limit,limit));
 	Serial.print(" ");
-	Serial.print(constrain(baseline+movementThreshold+compensationValue,-limit,limit));
+	Serial.print(constrain(baseline+movementThreshold+thresholdCorrection,-limit,limit));
   }  else Serial.print("0 0 0");
   Serial.print(" ");
   // if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit)); else Serial.print("0");

@@ -8,7 +8,7 @@
   for application in HCI applications (e.g. for mouse cursor control).
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
-  Overshoot compensation and automatic calibration are supported.
+  Automatic calibration is supported (either by resetting the baseline or by apating movement thresholds).
   Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
@@ -38,7 +38,7 @@ extern "C" {
 // default signal conditioning parameters
 #define GAIN                        1.00   // gain for incoming values
 #define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement (gain normalized)
-#define COMPENSATION_DECAY          0.97   // overshoot compensation time (close to 1 -> slower decay)
+#define THRESHOLD_DECAY             0.97   // threshold correction decay time (close to 1 -> slower decay)
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration (gain normalized)
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
@@ -69,7 +69,7 @@ public:
   void     setMovementThreshold(int32_t movementThreshold);
   void     setIdleDetectionThreshold(int32_t idleDetectionThreshold);
   void     setIdleDetectionPeriod(int32_t idleDetectionPeriod);
-  void     setCompensationDecay(double compensationDecay);
+  void     setThresholdDecay(double thresholdDecay);
   void     setGain(double gain);
   void     setSampleRate(double sampleRate);
   void     setBaselineLowpass(double lpBaseline);
@@ -85,12 +85,12 @@ private:
 
   int32_t  movementThreshold;
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
-  double   compensationDecay;
+  double   thresholdDecay;
   double   gain;
   double   sampleRate,lpBaseline,lpNoise,lpActivity;
   
   int32_t  raw,filtered,activity,baseline,offset;
-  int32_t  lastFilteredValue,lastActivityValue,compensationValue;
+  int32_t  lastFilteredValue,lastActivityValue,thresholdCorrection;
   bool     moving,baselineLocked;
   uint8_t  autoCalibrationMode;
   uint32_t activityTimestamp=0;
