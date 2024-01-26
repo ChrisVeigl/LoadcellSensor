@@ -7,8 +7,7 @@
  * 
  * Following serial commands are supported:
  *   'm': enable/disable mouse cursor movement
- *   'a': enable/disable autocalibration (if activity below idle threshold)
- *   'o': enable/disable overshoot compensation
+ *   'a': set autocalibration mode (0: disabled, 1: reset baseline, 2: adapt thresholds)
  *   'c': calibrate, reset 0 position (also triggered by connecting Pin 17 to GND)
  *   'l': enable/disable limit of values for serial plotter
  *   '1'-'3': show/hide channel1 (X-) signals
@@ -29,7 +28,7 @@
 #define LED_PIN         LED_BUILTIN
 
 #define SLOWDOWN_FACTOR 800         // for cursor movment (bigger value -> slower movement)
-#define PLOT_LIMIT 40000            // limit for serial plotter values (to avoid display re-scale)
+#define PLOT_LIMIT 10000            // limit for serial plotter values (to avoid display re-scale)
 
 Adafruit_NAU7802 nau;
 LoadcellSensor X,Y;
@@ -37,13 +36,16 @@ LoadcellSensor X,Y;
 int32_t  mx=0,my=0;
 double   accuX,accuY;
 int32_t  plotLimit=PLOT_LIMIT;
-uint8_t  autoCalibrationEnabled=1,overshootCompensation=1,mouseEnabled=0;
+uint8_t  autoCalibrationMode=AUTOCALIBRATION_RESET_BASELINE;
+uint8_t  mouseEnabled=0;
 uint8_t  chnMask=0b111111;
 
 void setup() {
 
   pinMode (BUTTON_PIN, INPUT_PULLUP);
   pinMode (LED_PIN, OUTPUT);
+  delay(10);
+  
   Serial.begin(115200);
   while (! nau.begin(&myWire)) {
     Serial.println("Failed to find NAU7802");
@@ -55,24 +57,20 @@ void setup() {
   nau.setChannel(NAU7802_CHANNEL2);
   configureNAU();
 
-  /* 10K sensorboard settings */
+  /* 1K SMD thick film resistor sensorboard settings */
   // X.setMovementThreshold(2000);      Y.setMovementThreshold(2000);
   // X.setIdleDetectionThreshold(3500); Y.setIdleDetectionThreshold(3500);
-
-  /* 100K sensorboard settings */
-  // X.setMovementThreshold(2500);      Y.setMovementThreshold(2500); 
-  // X.setIdleDetectionThreshold(4500); Y.setIdleDetectionThreshold(4500);
+  // X.setAutoCalibrationMode(AUTOCALIBRATION_ADAPT_THRESHOLD); 
+  // Y.setAutoCalibrationMode(AUTOCALIBRATION_ADAPT_THRESHOLD);
 
   /* strain gauge sensorboard settings */
-   X.setGain(0.1);                 Y.setGain(0.1);
-   X.setCompensationFactor(0);      Y.setCompensationFactor(0);
-   // X.setCompensationDecay(0.80);      Y.setCompensationDecay(0.80);
-   X.setMovementThreshold(500);    Y.setMovementThreshold(500);
-   X.setIdleDetectionPeriod(200);   Y.setIdleDetectionPeriod(200);
+   X.setGain(0.1); Y.setGain(0.1);
+   X.setThresholdDecay(0.97); Y.setThresholdDecay(0.97);
+   X.setMovementThreshold(900); Y.setMovementThreshold(900);
+   X.setIdleDetectionPeriod(200); Y.setIdleDetectionPeriod(200);
    X.setIdleDetectionThreshold(120); Y.setIdleDetectionThreshold(120);
-
-
-
+   X.setAutoCalibrationMode(AUTOCALIBRATION_RESET_BASELINE); 
+   Y.setAutoCalibrationMode(AUTOCALIBRATION_RESET_BASELINE);
 }
 
 
@@ -90,12 +88,10 @@ void loop() {
     if (c=='m') mouseEnabled=!mouseEnabled;
     if (c=='l') plotLimit^=(1<<24);   
     if (c=='c') { X.calib(); Y.calib(); }
-    if (c=='a') { autoCalibrationEnabled=!autoCalibrationEnabled;
-                  X.enableAutoCalibration(autoCalibrationEnabled); 
-                  Y.enableAutoCalibration(autoCalibrationEnabled); }
-    if (c=='o') { overshootCompensation=!overshootCompensation; 
-                  X.enableOvershootCompensation(overshootCompensation); 
-                  Y.enableOvershootCompensation(overshootCompensation); }
+    if (c=='a') { autoCalibrationMode++; 
+                  if (autoCalibrationMode>=3) autoCalibrationMode=0;
+                  X.setAutoCalibrationMode(autoCalibrationMode); 
+                  Y.setAutoCalibrationMode(autoCalibrationMode); }
   }
 
   // read raw ADC values 
