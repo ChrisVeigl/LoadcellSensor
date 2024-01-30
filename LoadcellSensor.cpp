@@ -91,7 +91,7 @@ int32_t LoadcellSensor::process (int32_t value) {
 						calib();
 					break;					
 				case AUTOCALIBRATION_ADAPT_THRESHOLD:
-						thresholdCorrection += THRESHOLD_CORRECTION_VALUE;  // abs(maxForce)/10
+						thresholdCorrection += movementThreshold/2;  // increase movement threshold 
 					break;
 			}
 		}

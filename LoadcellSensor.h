@@ -43,9 +43,6 @@ extern "C" {
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
 
-// other signal processing settings (fixed)
-#define THRESHOLD_CORRECTION_VALUE  400   // if autocalibration mode is "adapt threshold", this update value is used
-
 // filter identification bitmasks
 #define FILTER_BASELINE   (1<<0)
 #define FILTER_NOISE      (1<<1)
