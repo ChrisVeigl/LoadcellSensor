@@ -8,7 +8,7 @@
   for application in HCI applications (e.g. for mouse cursor control).
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
-  Overshoot compensation and automatic calibration are supported.
+  Automatic calibration is supported (either by resetting the baseline or by apating movement thresholds).
   Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
@@ -24,6 +24,11 @@ extern "C" {
 #include "fidlib.h"
 }
 
+#define AUTOCALIBRATION_DISABLED        0 
+#define AUTOCALIBRATION_RESET_BASELINE  1 
+#define AUTOCALIBRATION_ADAPT_THRESHOLD 2 
+
+
 // default frequency settings
 #define SAMPLE_RATE 25       // sampling rate: 25Hz
 #define LP_BASELINE 0.1      // low pass cutoff frequency for baseline calculation (Hz)
@@ -33,17 +38,10 @@ extern "C" {
 // default signal conditioning parameters
 #define GAIN                        1.00   // gain for incoming values
 #define MOVEMENT_THRESHOLD          1000   // deflection from baseline which indicates a valid movement (gain normalized)
-#define COMPENSATION_DECAY          0.95   // overshoot compensation time (close to 1 -> slower decay)
-#define COMPENSATION_FACTOR         0.05   // overshoot compensation amplitude (* max amplitude)
+#define THRESHOLD_DECAY             0.97   // threshold correction decay time (close to 1 -> slower decay)
 #define IDLE_DETECTION_THRESHOLD    3000   // noise theshold value for auto calibration (gain normalized)
 #define IDLE_DETECTION_PERIOD       1000   // in milliseconds
 #define BYPASS_BASELINE             10     // bypass baseline calculation n times after a movement (avoid drift)
-
-// other signal processing settings (fixed)
-#define MAXIMUM_GRADIENT_NOMOVEMENT 500   // the maximum signal gradient for updating the baseline when not moving (gain normalized)
-#define MINIMUM_COMPENSATION_VALUE  400   // the minimum compensation of movement threshold after a movement (gain normalized)
-#define BASELINE_ADAPTIVE_FEEDRATE    5   // baseline lowpass filter adaption (higher feed rate after a movement)
-#define BYPASS_BASELINE_AFTER_MOVEMENT 1  // bypass baseline adjustment for n samples after a movement)
 
 // filter identification bitmasks
 #define FILTER_BASELINE   (1<<0)
@@ -68,15 +66,13 @@ public:
   void     setMovementThreshold(int32_t movementThreshold);
   void     setIdleDetectionThreshold(int32_t idleDetectionThreshold);
   void     setIdleDetectionPeriod(int32_t idleDetectionPeriod);
-  void     setCompensationFactor(double compensationFactor);
-  void     setCompensationDecay(double compensationDecay);
+  void     setThresholdDecay(double thresholdDecay);
   void     setGain(double gain);
   void     setSampleRate(double sampleRate);
   void     setBaselineLowpass(double lpBaseline);
   void     setNoiseLowpass(double lpNoise);
   void     setActivityLowpass(double lpActivity);
-  void     enableOvershootCompensation(bool b);
-  void     enableAutoCalibration(bool b);
+  void     setAutoCalibrationMode(uint8_t mode);
   bool     isMoving(void);
   void     lockBaseline(bool b);
   void     printValues(uint8_t mask, int32_t limit);
@@ -86,14 +82,15 @@ private:
 
   int32_t  movementThreshold;
   int32_t  idleDetectionThreshold,idleDetectionPeriod;
-  double   compensationDecay,compensationFactor;
+  double   thresholdDecay;
   double   gain;
   double   sampleRate,lpBaseline,lpNoise,lpActivity;
   
-  int32_t  raw,filtered,activity,baseline,offset,bypassBaseline,gradient;
-  int32_t  lastFilteredValue,lastActivityValue,maxForce,compensationValue;
-  bool     moving,overshootCompensationEnabled,autoCalibrationEnabled,baselineLocked;
-  uint32_t activityTimestamp=0,feedRate;
+  int32_t  raw,filtered,activity,baseline,offset;
+  int32_t  lastFilteredValue,lastActivityValue,thresholdCorrection;
+  bool     moving,baselineLocked;
+  uint8_t  autoCalibrationMode;
+  uint32_t activityTimestamp=0;
 
   FidFilter * filt_baseline;
   FidRun *run_baseline;

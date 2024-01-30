@@ -8,7 +8,7 @@
   for application in HCI applications (e.g. for mouse cursor control).
 
   The values are noise-filtered and compared to a baseline which adapts to slow drifting.
-  Overshoot compensation and automatic calibration are supported.
+  Automatic calibration is supported (either by resetting the baseline or by apating movement thresholds).
   Note: the values should be fed into the LoadcellSensor::process() method periodically
 
   Thanks to Jim Peters for the marvellous fiview filter tool and the fidlib filter library:
@@ -34,18 +34,15 @@
 */
 /**************************************************************************/
 LoadcellSensor::LoadcellSensor () {
-  offset=activity=maxForce=compensationValue=0;
+  offset=activity=thresholdCorrection=0;
   lastFilteredValue=lastActivityValue=0;
-  overshootCompensationEnabled=autoCalibrationEnabled=true;
+  autoCalibrationMode=AUTOCALIBRATION_RESET_BASELINE;
   activityTimestamp=0;
-  bypassBaseline=0;gradient=0;
-  feedRate=1;
   moving=false;baselineLocked=false;
   movementThreshold=MOVEMENT_THRESHOLD;
   idleDetectionThreshold=IDLE_DETECTION_THRESHOLD;
   idleDetectionPeriod=IDLE_DETECTION_PERIOD;
-  compensationFactor=COMPENSATION_FACTOR;
-  compensationDecay=COMPENSATION_DECAY;
+  thresholdDecay=THRESHOLD_DECAY;
   gain=GAIN;
   sampleRate=SAMPLE_RATE;
   lpBaseline=LP_BASELINE;
@@ -77,66 +74,51 @@ int32_t LoadcellSensor::process (int32_t value) {
   activity += abs(a-lastActivityValue);  
   lastActivityValue=a;
 
-  // adjust raw values: offset and overshoot compensation
+  // remove offset from adjust raw values 
   raw-=offset;
-  if (!overshootCompensationEnabled) 
-    compensationValue=0;
 
   // calculate filtered channel value
   filtered= func_noise(fbuf_noise,raw);
-  gradient=filtered-lastFilteredValue;
   lastFilteredValue=filtered;
 
   // autocalibration / idle detection
-  if (autoCalibrationEnabled) {
-    if (millis()-activityTimestamp > idleDetectionPeriod) { 
-      if (activity < idleDetectionThreshold) { 
-        if (moving) calib(); 
-      }
-      clearActivity();
-      activityTimestamp=millis();
-    }
+  if (autoCalibrationMode && moving) { 
+	if (millis()-activityTimestamp > idleDetectionPeriod) {
+		// check if threshold or baseline should be adapted
+		if (activity < idleDetectionThreshold) {
+			switch (autoCalibrationMode) {
+				case AUTOCALIBRATION_RESET_BASELINE:
+						calib();
+					break;					
+				case AUTOCALIBRATION_ADAPT_THRESHOLD:
+						thresholdCorrection += movementThreshold/2;  // increase movement threshold 
+					break;
+			}
+		}
+		clearActivity();
+		activityTimestamp=millis();
+	}
   }
 
   // handle baseline and movement
-  int actThreshold = movementThreshold + abs(compensationValue);
+  int actThreshold = movementThreshold + abs(thresholdCorrection);
   if ((abs(filtered-baseline) <= actThreshold )) {
-      // || ((maxForce!=0) && (sgn(maxForce) != sgn(filtered-baseline)))) {
     moving=false; 
-    if (maxForce!=0)
-      maxForce=0;
 
+    if (!baselineLocked) 
+        baseline= func_baseline(fbuf_baseline,raw);
 
-    if ((!bypassBaseline) && (abs(gradient) < MAXIMUM_GRADIENT_NOMOVEMENT)) {
-      if (!baselineLocked) {
-        for (int i=0;i<=feedRate/2;i++)
-          baseline= func_baseline(fbuf_baseline,raw);
-	    if (feedRate) feedRate--;
-      }
-
-      if (compensationValue>0) 
-	    compensationValue*=compensationDecay;
-	} else if (bypassBaseline) bypassBaseline--;
+    if (thresholdCorrection>0) 
+	    thresholdCorrection*=thresholdDecay;
   }  
 
   if (abs(filtered-baseline) > actThreshold ) {  // moving! leave baseline as it is!
     if (!moving) {
-      activityTimestamp=millis();
-      activity+=idleDetectionThreshold;
-      moving=true;
-	  feedRate=BASELINE_ADAPTIVE_FEEDRATE;
-	  bypassBaseline=BYPASS_BASELINE_AFTER_MOVEMENT;
+		activityTimestamp=millis();
+		activity+=idleDetectionThreshold;
+		moving=true;
 	}
     result=filtered-baseline; 
-    if (abs(result) > abs(maxForce)) {
-      maxForce=result;
-      if ((overshootCompensationEnabled)) // && (compensationValue < abs(maxForce*compensationFactor)))
-	  {
-		  compensationValue = abs(maxForce*compensationFactor);
-		  if (compensationValue < MINIMUM_COMPENSATION_VALUE) 
-			  compensationValue = MINIMUM_COMPENSATION_VALUE;
-	  }
-    }
 	if (result < 0) result += actThreshold; 
 	else result -= actThreshold;
   }
@@ -221,34 +203,14 @@ void LoadcellSensor::setIdleDetectionPeriod(int32_t idleDetectionPeriod) {
 
 /**************************************************************************/
 /*!
-    @brief  sets overshoot compensation factor
-    @param  compensationFactor  the compensation factor, multiplied with last max amplitude
+    @brief  sets overshoot threshold decay
+    @param  thresholdDecay the threshold decay (0-1, close to 1 -> long decay)
 */
 /**************************************************************************/
-void LoadcellSensor::setCompensationFactor(double compensationFactor) {
-  this->compensationFactor=compensationFactor;  
+void LoadcellSensor::setThresholdDecay(double thresholdDecay) {
+  this->thresholdDecay=thresholdDecay;   
 }
 
-/**************************************************************************/
-/*!
-    @brief  sets overshoot compensation decay
-    @param  compensationDecay  the compensation decay (0-1, close to 1 -> long decay)
-*/
-/**************************************************************************/
-void LoadcellSensor::setCompensationDecay(double compensationDecay) {
-  this->compensationDecay=compensationDecay;   
-}
-
-
-/**************************************************************************/
-/*!
-    @brief  enable/disable overshoot compensation
-    @param  b true:enable, false:disable
-*/
-/**************************************************************************/
-void LoadcellSensor::enableOvershootCompensation(bool b) {
-  overshootCompensationEnabled=b;
-}
 
 /**************************************************************************/
 /*!
@@ -316,15 +278,14 @@ void LoadcellSensor::setActivityLowpass(double lpActivity) {
 }
 
 
-
 /**************************************************************************/
 /*!
-    @brief  enable/disable autocalibration
-    @param  b true:enable, false:disable
+    @brief  set autocalibration mode
+    @param  m: mode
 */
 /**************************************************************************/
-void LoadcellSensor::enableAutoCalibration(bool b) {
-  autoCalibrationEnabled=b;
+void LoadcellSensor::setAutoCalibrationMode(uint8_t m) {
+  autoCalibrationMode=m;
 }
 
 /**************************************************************************/
@@ -364,15 +325,13 @@ void LoadcellSensor::printValues(uint8_t mask, int32_t limit) {
   if (mask&4) { 
     Serial.print(constrain(baseline,-limit,limit));
     Serial.print(" ");
-    if (overshootCompensationEnabled) {
-      Serial.print(constrain(baseline-movementThreshold-compensationValue,-limit,limit));
-	  Serial.print(" ");
-      Serial.print(constrain(baseline+movementThreshold+compensationValue,-limit,limit));
-    } else Serial.print("0 0");
-  }  else Serial.print("0");
+	Serial.print(constrain(baseline-movementThreshold-thresholdCorrection,-limit,limit));
+	Serial.print(" ");
+	Serial.print(constrain(baseline+movementThreshold+thresholdCorrection,-limit,limit));
+  }  else Serial.print("0 0 0");
   Serial.print(" ");
-  if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit)); else Serial.print("0");
-  Serial.print(" ");
+  // if (autoCalibrationEnabled) Serial.print(constrain(activity,-limit,limit)); else Serial.print("0");
+  // Serial.print(" ");
 }
 
 /**************************************************************************/
